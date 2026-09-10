@@ -1,4 +1,4 @@
-const emojiPattern = /[\p{Emoji_Presentation}\p{Extended_Pictographic}\u{FE00}-\u{FE0F}\u{200D}]/gu;
+const emojiPattern = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2300}-\u{23FF}\u{2B00}-\u{2BFF}\u{FE00}-\u{FE0F}\u{200D}]/gu;
 
 const numberWords = ['cero', 'uno', 'dos', 'tres', 'cuatro', 'cinco', 'seis', 'siete', 'ocho', 'nueve', 'diez', 'once', 'doce', 'trece', 'catorce', 'quince', 'dieciséis', 'diecisiete', 'dieciocho', 'diecinueve', 'veinte'];
 
@@ -30,7 +30,7 @@ function numberInSpanish(value) {
 function formatARS(value) {
   const amount = Number(String(value).replace(/\./g, '').replace(',', '.'));
   if (!Number.isFinite(amount)) return value;
-  return `${numberInSpanish(amount)} pesos argentinos`;
+  return `${numberInSpanish(amount)} pesos`;
 }
 
 export function normalizeForTTS(text, { locale = 'es-AR', currency = 'ARS' } = {}) {
@@ -47,9 +47,10 @@ export function normalizeForTTS(text, { locale = 'es-AR', currency = 'ARS' } = {
     .trim();
 
   speech = speech
-    .replace(/\bBBVA\b/gi, 'B B uve A')
+    .replace(/\bBBVA\b/gi, 'bebeuvea')
     .replace(/\bUSD\b/gi, 'dólares')
     .replace(/\bU\$S\b/gi, 'dólares')
+    .replace(/\bVIP\b/gi, 'viaipi')
     .replace(/\+/g, ' plus ');
 
   if (locale === 'es-AR' && currency === 'ARS') {

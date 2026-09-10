@@ -94,7 +94,7 @@ export default function ChatPanel({ isOpen, onClose, onExposeReset, onMessagesCh
 
   const speak = useCallback((text) => {
     if (!ttsEnabled) return;
-    const finalText = normalizeForTTS(text).replace(/\bBBVA\b/gi, 'B B uve A');
+    const finalText = normalizeForTTS(text);
     if (!finalText) return;
     queueRef.current += `${queueRef.current ? ' ' : ''}${finalText}`;
     clearTimeout(flushRef.current);

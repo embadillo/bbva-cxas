@@ -19,10 +19,35 @@ function getMessenger() {
   return document.querySelector('chat-messenger');
 }
 
+function extractWidgetToolOutputs(value, results = [], context = {}) {
+  if (!value || typeof value !== 'object') return results;
+  if (Array.isArray(value)) {
+    value.forEach((item) => extractWidgetToolOutputs(item, results, context));
+    return results;
+  }
+
+  const turnIndex = value.turnIndex ?? value.turn_index ?? context.turnIndex;
+  const toolCall = value.toolCall;
+  if (toolCall?.displayName === 'bbva_comparison' && toolCall.args?.type === 'custom_template' && toolCall.args.payload) {
+    results.push({ functionName: toolCall.displayName, type: 'custom_template', summary: toolCall.args.summary, payload: toolCall.args.payload, turnIndex });
+  }
+
+  const toolResponse = value.toolResponse;
+  if (toolResponse?.displayName === 'bbva_comparison' && toolResponse.response?.widget_tool_status === 'success' && toolResponse.response.payload) {
+    results.push({ functionName: toolResponse.displayName, type: 'custom_template', summary: toolResponse.response.summary, payload: toolResponse.response.payload, turnIndex });
+  }
+
+  Object.entries(value).forEach(([key, child]) => {
+    if (key === 'toolCall' || key === 'toolResponse') return;
+    extractWidgetToolOutputs(child, results, { turnIndex });
+  });
+  return results;
+}
+
 function extractOutputs(data) {
-  if (Array.isArray(data?.outputs)) return data.outputs;
-  if (Array.isArray(data?.messages)) return data.messages;
-  return [];
+  const outputs = Array.isArray(data?.outputs) ? [...data.outputs] : Array.isArray(data?.messages) ? [...data.messages] : [];
+  const widgetOutputs = extractWidgetToolOutputs(data);
+  return outputs.concat(widgetOutputs);
 }
 
 function notifyWelcome(data) {

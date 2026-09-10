@@ -8,6 +8,7 @@ const localCardImages = {
   'bbva-black-plus-save': blackSaveImage,
   'bbva-black-plus-travel': blackTravelImage,
   'bbva-visa-platinum': platinumVisaImage,
+  'bbva-package-platinum': platinumVisaImage,
 };
 
 function isHttpUrl(value) {

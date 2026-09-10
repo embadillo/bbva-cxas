@@ -23,6 +23,13 @@ function stableSignature(value) {
   return JSON.stringify(stableValue(value));
 }
 
+function widgetSignature(payload, turnIndex) {
+  const productIds = Array.isArray(payload?.productDetails)
+    ? payload.productDetails.map((product) => product?.productId || product?.id || '')
+    : [];
+  return `${turnIndex}:${payload?.type || ''}:${payload?.title || ''}:${productIds.join('|')}`;
+}
+
 function extractText(output) {
   if (typeof output === 'string') return output;
   return output?.text || output?.content?.text || output?.message?.text || output?.fulfillmentText || '';
@@ -50,7 +57,7 @@ export function normalizeCXASResponseOutputs(outputs) {
     const turnIndex = output.turnIndex ?? payload?.turnIndex ?? 'unknown';
     const widgetType = payload ? resolveWidgetType(payload) : null;
     const signature = payload
-      ? `${turnIndex}:${widgetType}:${stableSignature(payload)}`
+      ? (widgetType === 'bbva_comparison' ? widgetSignature(payload, turnIndex) : `${turnIndex}:${widgetType}:${stableSignature(payload)}`)
       : `${turnIndex}:text:${text.replace(/\s+/g, ' ')}`;
     if (seen.has(signature)) return null;
     seen.add(signature);
