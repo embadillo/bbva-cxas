@@ -55,7 +55,12 @@ export function normalizeWidgetPayload(rawOutput, metadata = {}) {
   }
 
   if (candidate.type === 'custom_template' && candidate.payload && typeof candidate.payload === 'object' && !Array.isArray(candidate.payload)) {
-    candidate = { ...candidate.payload, summary: candidate.summary, turnIndex: candidate.turnIndex };
+    candidate = {
+      ...candidate.payload,
+      copy: candidate.payload.copy,
+      summary: candidate.summary,
+      turnIndex: candidate.turnIndex,
+    };
   }
 
   const merged = { ...candidate };
@@ -66,7 +71,7 @@ export function normalizeWidgetPayload(rawOutput, metadata = {}) {
     functionName: rawOutput.functionName || rawOutput.function?.name || rawOutput.toolName || metadata.functionName,
   });
   if (!resolvedType) return null;
-  return { ...merged, type: resolvedType };
+  return { ...merged, copy: merged.copy, type: resolvedType };
 }
 
 export function getActionIcon(action) {

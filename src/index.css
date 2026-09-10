@@ -2990,6 +2990,10 @@ a      { text-decoration: none; color: inherit; }
 .azul-home-copy { margin: 3px 0 18px; }
 .azul-home h2 { margin: 0 0 7px; font-weight: 400; }
 .azul-main-menu { width: 100%; border-top: 1px solid #e5ecf2; }
+.azul-main-menu-copy { padding: 0 0 10px; color: #121f3d; font: 400 15px/1.5 'Lato', sans-serif; text-align: left; }
+.azul-main-menu-copy p { margin: 0 0 5px; }
+.azul-main-menu-copy p.azul-main-menu-copy-question { margin-top: 14px; margin-bottom: 12px; }
+.azul-main-menu-copy p:last-child { margin-bottom: 0; }
 .azul-menu-row { display: flex; align-items: center; width: 100%; min-height: 42px; gap: 12px; padding: 6px 0; border: 0; border-bottom: 1px solid #e5ecf2; border-radius: 0; background: transparent; color: #072146; text-align: left; }
 .azul-menu-row:hover:not(:disabled) { background: #f7fafc; }
 .azul-menu-row:focus-visible { position: relative; z-index: 1; outline: 2px solid rgba(20,100,165,.28); outline-offset: -2px; }

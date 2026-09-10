@@ -9,8 +9,14 @@ const defaultIcons = {
   products: <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6" height="6" rx="1" /><rect x="14" y="4" width="6" height="6" rx="1" /><rect x="4" y="14" width="6" height="6" rx="1" /><rect x="14" y="14" width="6" height="6" rx="1" /></svg>,
 };
 
-export default function AzulMainMenu({ actions = [], onAction, disabled = false }) {
+export default function AzulMainMenu({ actions = [], copy, fallbackText = '', onAction, disabled = false }) {
+  const currentCopy = copy && typeof copy === 'object' ? copy : {};
+  const copyValues = [currentCopy.greeting, currentCopy.guidance, currentCopy.question].filter((value) => String(value || '').trim());
+  if (!copyValues.length && fallbackText) copyValues.push(String(fallbackText));
   return <nav className="azul-main-menu" aria-label="Opciones principales de Azul">
+    {copyValues.length > 0 && <div className="azul-main-menu-copy">
+      {copyValues.map((value, index) => <p key={`menu-copy-${index}`} className={index === copyValues.length - 1 ? 'azul-main-menu-copy-question' : ''}>{value}</p>)}
+    </div>}
     {actions.map((rawAction, index) => {
       const action = normalizeAction(rawAction);
       const iconName = getActionIcon(action) || ['card', 'account', 'lock', 'claim', 'shield', 'products'][index] || 'products';

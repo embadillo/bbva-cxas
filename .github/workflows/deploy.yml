@@ -33,7 +33,8 @@ jobs:
       - name: Build
         run: npm run build
         env:
-          VITE_CONVERSATION_MODE: mock
+          VITE_CONVERSATION_MODE: cxas
+          VITE_CXAS_DEPLOYMENT_NAME: projects/483471568825/locations/us/apps/0bf6c8a3-e782-49a8-a9e1-24c126f45e61/deployments/bc72b3db-9741-40be-b65a-45fc0d7f7e25
           VITE_ELEVENLABS_TTS_ENDPOINT: ${{ secrets.VITE_ELEVENLABS_TTS_ENDPOINT }}
       - name: Setup Pages
         uses: actions/configure-pages@v5

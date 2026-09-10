@@ -70,6 +70,7 @@ const defaultMenuActions = [
   { label: 'Fraudes', utterance: 'Quiero reportar un fraude', icon: 'shield' },
   { label: 'Más productos', utterance: 'Quiero conocer más productos', icon: 'products' },
 ];
+const isMainMenuPayload = (payload) => payload?.type === 'quick_actions' && payload?.variant === 'main_menu';
 export default function ChatPanel({ isOpen, onClose, onExposeReset, onMessagesChange, onExposeSend, intent, resetSignal = 0 }) {
   const [messages, setMessages] = useState([]);
   const [inputVal, setInputVal] = useState('');
@@ -143,21 +144,23 @@ export default function ChatPanel({ isOpen, onClose, onExposeReset, onMessagesCh
     });
   }, [onMessagesChange]);
 
-  const addPayload = useCallback((payload) => {
+  const addPayload = useCallback((payload, fallbackText = '') => {
     const normalized = normalizeWidgetPayload(payload);
     if (!normalized) {
       if (import.meta.env.DEV) console.warn('[BBVA] Unrecognized payload ignored', payload);
       return;
     }
     setMessages((current) => {
-      return [...current, { id: uid(), type: 'payload', payload: normalized }];
+      return [...current, { id: uid(), type: 'payload', payload: normalized, fallbackText }];
     });
   }, [onMessagesChange]);
 
   const handleResponse = useCallback((response) => {
     if (response.error) { addBot(response.error); return; }
-    if (response.text) addBot(response.text);
-    response.payloads.forEach(addPayload);
+    const payloads = response.payloads || [];
+    const mainMenu = payloads.find(isMainMenuPayload);
+    if (response.text && !mainMenu) addBot(response.text);
+    payloads.forEach((payload) => addPayload(payload, isMainMenuPayload(payload) ? response.text : ''));
     if (response.metadata?.reset) setJourney(resetBBVADemo());
   }, [addBot, addPayload]);
 
@@ -188,8 +191,9 @@ export default function ChatPanel({ isOpen, onClose, onExposeReset, onMessagesCh
   useEffect(() => {
     return subscribeCXASWelcome(({ outputs }) => {
       const response = normalizeCXASResponseOutputs(outputs);
-      if (response.text) addBot(response.text);
-      response.payloads.forEach(addPayload);
+      const mainMenu = response.payloads.find(isMainMenuPayload);
+      if (response.text && !mainMenu) addBot(response.text);
+      response.payloads.forEach((payload) => addPayload(payload, isMainMenuPayload(payload) ? response.text : ''));
     });
   }, [addBot, addPayload]);
   useEffect(() => {
@@ -209,7 +213,7 @@ export default function ChatPanel({ isOpen, onClose, onExposeReset, onMessagesCh
     if (!payload || !widgetType) return null;
     if (widgetType === 'quick_actions') {
       const actions = payload.actions || [];
-      if (payload.variant === 'main_menu') return <AzulMainMenu actions={actions} onAction={handleWidgetAction} disabled={isResponding} />;
+      if (payload.variant === 'main_menu') return <AzulMainMenu copy={payload.copy} fallbackText={message.fallbackText} actions={actions} onAction={handleWidgetAction} disabled={isResponding} />;
       return <div className="bbva-widget quick-actions-widget">{actions.map((rawAction, index) => {
         const action = normalizeAction(rawAction);
         return <button key={action.utterance || `cxas-action-${index}`} className="cp-ai-pill" disabled={isResponding || !action.utterance} onClick={() => handleWidgetAction(action.utterance)}><strong>{action.label}</strong>{action.description && <small>{action.description}</small>}</button>;
