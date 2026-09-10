@@ -1,11 +1,13 @@
 import { runtime } from '../../config/runtime';
-import { createElement } from 'react';
+import { createElement, useEffect } from 'react';
 
 let messenger = null;
 let registrationPromise = null;
 let interceptorInstalled = false;
 let pendingTurn = null;
 let sessionGeneration = 0;
+const welcomeListeners = new Set();
+let lastWelcome = null;
 
 const sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
@@ -23,6 +25,11 @@ function extractOutputs(data) {
   return [];
 }
 
+function notifyWelcome(data) {
+  lastWelcome = data;
+  welcomeListeners.forEach((listener) => listener(data));
+}
+
 function installResponseInterceptor() {
   if (interceptorInstalled || typeof window === 'undefined') return;
   interceptorInstalled = true;
@@ -33,10 +40,14 @@ function installResponseInterceptor() {
     if (urlString.includes('runSession')) {
       request.then((response) => {
         response.clone().json().then((data) => {
-          if (!pendingTurn) return;
+          const outputs = extractOutputs(data);
+          if (!pendingTurn) {
+            notifyWelcome({ outputs, sessionUpdates: data?.sessionInfo || {} });
+            return;
+          }
           const current = pendingTurn;
           pendingTurn = null;
-          current.resolve({ outputs: extractOutputs(data), sessionUpdates: data?.sessionInfo || {} });
+          current.resolve({ outputs, sessionUpdates: data?.sessionInfo || {} });
         }).catch((error) => {
           if (!pendingTurn) return;
           const current = pendingTurn;
@@ -75,6 +86,7 @@ export async function ensureCXASReady() {
       window.chatSdk.registerContext(window.chatSdk.prebuilts.ces.createContext({
         deploymentName: runtime.cxas.deploymentName,
         tokenBroker: { enableTokenBroker: true, enableRecaptcha: false },
+        enableWelcomeEvent: true,
       }));
     } else {
       await new Promise((resolve, reject) => {
@@ -83,6 +95,7 @@ export async function ensureCXASReady() {
             window.chatSdk.registerContext(window.chatSdk.prebuilts.ces.createContext({
               deploymentName: runtime.cxas.deploymentName,
               tokenBroker: { enableTokenBroker: true, enableRecaptcha: false },
+              enableWelcomeEvent: true,
             }));
             resolve();
           } catch (error) { reject(error); }
@@ -97,6 +110,12 @@ export async function ensureCXASReady() {
     throw error;
   });
   return registrationPromise;
+}
+
+export function subscribeCXASWelcome(listener) {
+  welcomeListeners.add(listener);
+  if (lastWelcome) listener(lastWelcome);
+  return () => welcomeListeners.delete(listener);
 }
 
 export async function sendCXASTurn(text) {
@@ -125,11 +144,17 @@ export function resetCXASSession() {
     pendingTurn.reject(new Error('CXAS session reset.'));
     pendingTurn = null;
   }
+  lastWelcome = null;
   try { messenger?.resetSession?.(); } catch (error) { logDevelopment('resetSession failed', error); }
   registrationPromise = null;
 }
 
 export function CxasSdkHost() {
+  useEffect(() => {
+    if (runtime.conversationMode !== 'cxas') return undefined;
+    ensureCXASReady().catch((error) => logDevelopment('welcome event unavailable', error.message));
+    return undefined;
+  }, []);
   if (runtime.conversationMode !== 'cxas') return null;
   return createElement(
     'div',

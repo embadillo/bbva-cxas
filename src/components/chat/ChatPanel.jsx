@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useAuth } from '../../context/AuthContext';
 import { sendConversationTurn } from '../../services/conversation/conversationService';
 import { createElevenLabsPlayer } from '../../services/tts/elevenLabsTTS';
 import { normalizeForTTS } from '../../services/tts/speechNormalization';
 import { createMockMarketplacePurchase } from '../../services/mockBankingService';
 import { loadDemoState, resetBBVADemo, saveDemoState } from '../../services/mockJourneyService';
-import { resetCXASSession } from '../../services/conversation/cxasClient';
-import { resetCXASResponseGuard } from '../../services/conversation/cxasConversationAdapter';
+import { resetCXASSession, subscribeCXASWelcome } from '../../services/conversation/cxasClient';
+import { normalizeCXASResponseOutputs, resetCXASResponseGuard } from '../../services/conversation/cxasConversationAdapter';
 import { mockProducts } from '../../data/mockProducts';
 import assistantMark from '../../assets/brand/cropped_circle_image.png';
 import AzulMainMenu from './AzulMainMenu';
@@ -16,7 +15,53 @@ import { ProductComparison, TripEstimate, ApplicationSummary, ActivationWidget, 
 
 let messageId = 0;
 const uid = () => ++messageId;
-const stripMarkdown = (text = '') => text.replace(/```[\s\S]*?```/g, '').replace(/^#{1,3}\s+/gm, '').trim();
+const stripMarkdown = (text = '') => text.replace(/```[\s\S]*?```/g, '').replace(/^#{1,3}\s+/gm, '').replace(/\\([\\`*_{}[\]()#+.!$|>~-])/g, '$1').trim();
+const renderInlineMarkdown = (text = '') => {
+  const parts = String(text).split(/(\*\*[^*]+\*\*|__[^_]+__|\*[^*]+\*)/g);
+  return parts.map((part, index) => {
+    if (/^\*\*[^*]+\*\*$/.test(part)) return <strong key={`bold-${index}`}>{part.slice(2, -2)}</strong>;
+    if (/^__[^_]+__$/.test(part)) return <strong key={`bold-${index}`}>{part.slice(2, -2)}</strong>;
+    if (/^\*[^*]+\*$/.test(part)) return <em key={`italic-${index}`}>{part.slice(1, -1)}</em>;
+    return <span key={`text-${index}`}>{part}</span>;
+  });
+};
+const parseMarkdownTableRow = (line = '') => line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map((cell) => cell.trim());
+const isMarkdownTableSeparator = (line = '') => /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(line);
+const renderBotMarkdown = (text = '') => {
+  const lines = String(text).split(/\r?\n/);
+  const blocks = [];
+  let listItems = [];
+  const flushList = () => {
+    if (!listItems.length) return;
+    blocks.push(<ul key={`list-${blocks.length}`}>{listItems}</ul>);
+    listItems = [];
+  };
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (line.includes('|') && isMarkdownTableSeparator(lines[index + 1] || '')) {
+      flushList();
+      const headers = parseMarkdownTableRow(line);
+      const rows = [];
+      index += 2;
+      while (index < lines.length && lines[index].includes('|') && lines[index].trim()) {
+        rows.push(parseMarkdownTableRow(lines[index]));
+        index += 1;
+      }
+      index -= 1;
+      blocks.push(<table key={`table-${index}`}><thead><tr>{headers.map((header, cellIndex) => <th key={`header-${cellIndex}`}>{renderInlineMarkdown(header)}</th>)}</tr></thead><tbody>{rows.map((row, rowIndex) => <tr key={`row-${rowIndex}`}>{headers.map((_header, cellIndex) => <td key={`cell-${rowIndex}-${cellIndex}`}>{renderInlineMarkdown(row[cellIndex] || '—')}</td>)}</tr>)}</tbody></table>);
+      continue;
+    }
+    const listMatch = line.match(/^\s*[-*]\s+(.+)$/);
+    if (listMatch) {
+      listItems.push(<li key={`item-${index}`}>{renderInlineMarkdown(listMatch[1])}</li>);
+      continue;
+    }
+    flushList();
+    if (line.trim()) blocks.push(<p key={`paragraph-${index}`}>{renderInlineMarkdown(line)}</p>);
+  }
+  flushList();
+  return blocks;
+};
 const defaultMenuActions = [
   { label: 'Tarjetas', utterance: 'Quiero consultar mis tarjetas', icon: 'card' },
   { label: 'Cuentas', utterance: 'Quiero consultar mis cuentas', icon: 'account' },
@@ -26,8 +71,6 @@ const defaultMenuActions = [
   { label: 'Más productos', utterance: 'Quiero conocer más productos', icon: 'products' },
 ];
 export default function ChatPanel({ isOpen, onClose, onExposeReset, onMessagesChange, onExposeSend, intent, resetSignal = 0 }) {
-  const { customerName } = useAuth();
-  const greetingName = customerName || 'Emiliano';
   const [messages, setMessages] = useState([]);
   const [inputVal, setInputVal] = useState('');
   const [isResponding, setIsResponding] = useState(false);
@@ -46,7 +89,6 @@ export default function ChatPanel({ isOpen, onClose, onExposeReset, onMessagesCh
   const playerRef = useRef(null);
   const sendRef = useRef(null);
   const initialIntentRef = useRef(null);
-  const initialMenuSpeechRef = useRef(false);
   const recognitionRef = useRef(null);
 
   const speak = useCallback((text) => {
@@ -135,7 +177,6 @@ export default function ChatPanel({ isOpen, onClose, onExposeReset, onMessagesCh
     queueRef.current = '';
     clearTimeout(flushRef.current);
     playerRef.current?.stop();
-    initialMenuSpeechRef.current = false;
     setMessages([]);
     setJourney(resetBBVADemo());
     resetCXASSession();
@@ -143,17 +184,14 @@ export default function ChatPanel({ isOpen, onClose, onExposeReset, onMessagesCh
   }, []);
   useEffect(() => { onExposeReset?.(resetChat); }, [onExposeReset, resetChat]);
   useEffect(() => { if (resetSignal) resetChat(); }, [resetChat, resetSignal]);
-  const showWelcome = isOpen && !intent;
-  const showHomeMenu = showWelcome && messages.length === 0;
+  const showHomeMenu = isOpen && !intent && messages.length === 0;
   useEffect(() => {
-    if (!showHomeMenu) {
-      initialMenuSpeechRef.current = false;
-      return;
-    }
-    if (initialMenuSpeechRef.current) return;
-    initialMenuSpeechRef.current = true;
-    speak(`¡Hola, ${greetingName}! Soy Azul, tu asistencia virtual de BBVA y voy a ayudarte con tu consulta. Para guiarte, escribí palabras clave o Menú para conocer los temas principales. ¿Cómo te ayudo?`);
-  }, [greetingName, showHomeMenu, speak]);
+    return subscribeCXASWelcome(({ outputs }) => {
+      const response = normalizeCXASResponseOutputs(outputs);
+      if (response.text) addBot(response.text);
+      response.payloads.forEach(addPayload);
+    });
+  }, [addBot, addPayload]);
   useEffect(() => {
     if (!isOpen) return;
     if (intent && initialIntentRef.current !== intent) {
@@ -189,10 +227,10 @@ export default function ChatPanel({ isOpen, onClose, onExposeReset, onMessagesCh
   };
 
   return <aside className={`chat-panel${isOpen ? ' open' : ''}${isExpanded ? ' expanded' : ''}`} aria-label="Azul, asistente BBVA Argentina">
-    <div className="cp-panel-header"><img className="cp-assistant-mark" src={assistantMark} alt="" /><div className="cp-header-identity"><strong>Azul</strong><span><i className="cp-availability-dot" aria-hidden="true" />Disponible</span></div><div className="cp-header-actions"><button className="cp-expand-btn" onClick={() => setIsExpanded((expanded) => !expanded)} aria-label={isExpanded ? 'Contraer Azul' : 'Expandir Azul'} title={isExpanded ? 'Contraer' : 'Expandir'}>{isExpanded ? <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 15H5v4M5 15l5 5M15 9h4V5M19 9l-5-5" /></svg> : <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5M3 3l6 6M16 21h5v-5M21 21l-6-6" /></svg>}</button><button className="cp-close-btn" onClick={onClose} aria-label="Cerrar Azul">×</button></div></div>
+    <div className="cp-panel-header"><img className="cp-assistant-mark" src={assistantMark} alt="" /><div className="cp-header-identity"><strong>Azul</strong><span><i className="cp-availability-dot" aria-hidden="true" />Disponible</span></div><div className="cp-header-actions"><button className="cp-reset-btn" onClick={resetChat} aria-label="Reiniciar conversación" title="Reiniciar conversación"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0 2 5.3" /><path d="M20 4v7h-7" /></svg></button><button className="cp-expand-btn" onClick={() => setIsExpanded((expanded) => !expanded)} aria-label={isExpanded ? 'Contraer Azul' : 'Expandir Azul'} title={isExpanded ? 'Contraer' : 'Expandir'}>{isExpanded ? <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 15H5v4M5 15l5 5M15 9h4V5M19 9l-5-5" /></svg> : <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5M3 3l6 6M16 21h5v-5M21 21l-6-6" /></svg>}</button><button className="cp-close-btn" onClick={onClose} aria-label="Cerrar Azul">×</button></div></div>
     <div className="cp-messages" ref={messagesRef} role="log" aria-live="polite">
-      {showWelcome && <div className="azul-home"><p className="azul-home-intro">¡Hola, {greetingName}! Soy Azul, tu asistencia virtual de BBVA y voy a ayudarte con tu consulta.<br /><br />Para guiarte, escribí palabras clave o &quot;Menú&quot; para conocer los temas principales.<br /><br />¿Cómo te ayudo?<br /><br /></p>{showHomeMenu && <AzulMainMenu actions={defaultMenuActions} onAction={handleWidgetAction} disabled={isResponding} />}</div>}
-      {messages.map((message) => message.type === 'bot' ? <div key={message.id} className="cp-bot-bubble acn-msg-enter">{message.text}</div> : message.type === 'user' ? <div key={message.id} className="cp-user-bubble acn-msg-enter">{message.text}</div> : <div key={message.id} className="acn-msg-enter" data-combo="true">{renderPayload(message)}</div>)}
+      {showHomeMenu && <div className="azul-home"><AzulMainMenu actions={defaultMenuActions} onAction={handleWidgetAction} disabled={isResponding} /></div>}
+      {messages.map((message) => message.type === 'bot' ? <div key={message.id} className="cp-bot-bubble acn-msg-enter">{renderBotMarkdown(message.text)}</div> : message.type === 'user' ? <div key={message.id} className="cp-user-bubble acn-msg-enter">{message.text}</div> : <div key={message.id} className="acn-msg-enter" data-combo="true">{renderPayload(message)}</div>)}
       {isResponding && <div className="cp-typing" aria-label="Azul está escribiendo"><span /><span /><span /></div>}
     </div>
     <div className="cp-input-bar">

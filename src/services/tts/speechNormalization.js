@@ -1,4 +1,4 @@
-const emojiPattern = /[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{27BF}]|[\u{FE00}-\u{FE0F}]|[\u{200D}]/gu;
+const emojiPattern = /[\p{Emoji_Presentation}\p{Extended_Pictographic}\u{FE00}-\u{FE0F}\u{200D}]/gu;
 
 const numberWords = ['cero', 'uno', 'dos', 'tres', 'cuatro', 'cinco', 'seis', 'siete', 'ocho', 'nueve', 'diez', 'once', 'doce', 'trece', 'catorce', 'quince', 'dieciséis', 'diecisiete', 'dieciocho', 'diecinueve', 'veinte'];
 
@@ -41,9 +41,16 @@ export function normalizeForTTS(text, { locale = 'es-AR', currency = 'ARS' } = {
     .replace(/\*\*([^*]+)\*\*/g, '$1')
     .replace(/\*([^*]+)\*/g, '$1')
     .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/\\([\\`*_{}[\]()#+.!$|>~-])/g, '$1')
     .replace(emojiPattern, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+
+  speech = speech
+    .replace(/\bBBVA\b/gi, 'B B uve A')
+    .replace(/\bUSD\b/gi, 'dólares')
+    .replace(/\bU\$S\b/gi, 'dólares')
+    .replace(/\+/g, ' plus ');
 
   if (locale === 'es-AR' && currency === 'ARS') {
     const amountPattern = '[0-9][0-9.\,]*';

@@ -33,7 +33,7 @@ function isControlOnly(output, text, payload) {
   return output?.turnCompleted === true || output?.type === 'turnCompleted' || output?.type === 'turn_completed';
 }
 
-function normalizeOutputs(outputs) {
+export function normalizeCXASResponseOutputs(outputs) {
   const seen = new Set();
   return outputs.map((rawOutput) => {
     const output = parseJson(rawOutput);
@@ -71,7 +71,7 @@ export async function sendCXASConversationTurn(text) {
       return normalizeConversationResponse({ sessionUpdates: result?.sessionUpdates || {}, metadata: { source: 'cxas', duplicate: true } });
     }
     lastResponse = { signature: responseSignature, time: now };
-    const normalized = normalizeOutputs(outputs);
+    const normalized = normalizeCXASResponseOutputs(outputs);
     const responseText = normalized.map((output) => output.text).filter(Boolean).join('\n').trim();
     const payloads = normalized.map((output) => output.payload).filter(Boolean);
     if (!responseText && !payloads.length) return normalizeConversationResponse({ sessionUpdates: result?.sessionUpdates || {}, metadata: { source: 'cxas', controlOnly: true } });
