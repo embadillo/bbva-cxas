@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { sendConversationTurn } from '../../services/conversation/conversationService';
 import { createElevenLabsPlayer } from '../../services/tts/elevenLabsTTS';
+import { normalizeForTTS } from '../../services/tts/speechNormalization';
 import { createMockMarketplacePurchase } from '../../services/mockBankingService';
 import { loadDemoState, resetBBVADemo, saveDemoState } from '../../services/mockJourneyService';
 import { resetCXASSession } from '../../services/conversation/cxasClient';
@@ -9,6 +10,7 @@ import { resetCXASResponseGuard } from '../../services/conversation/cxasConversa
 import { mockProducts } from '../../data/mockProducts';
 import assistantMark from '../../assets/brand/cropped_circle_image.png';
 import AzulMainMenu from './AzulMainMenu';
+import BBVAComparison from './BBVAComparison';
 import { normalizeAction, normalizeWidgetPayload, resolveWidgetType } from './widgetRegistry';
 import { ProductComparison, TripEstimate, ApplicationSummary, ActivationWidget, MarketplaceWidget } from '../bbva/MockJourneyWidgets';
 
@@ -44,11 +46,12 @@ export default function ChatPanel({ isOpen, onClose, onExposeReset, onMessagesCh
   const playerRef = useRef(null);
   const sendRef = useRef(null);
   const initialIntentRef = useRef(null);
+  const initialMenuSpeechRef = useRef(false);
   const recognitionRef = useRef(null);
 
   const speak = useCallback((text) => {
     if (!ttsEnabled) return;
-    const finalText = String(text ?? '').trim();
+    const finalText = normalizeForTTS(text).replace(/\bBBVA\b/gi, 'B B uve A');
     if (!finalText) return;
     queueRef.current += `${queueRef.current ? ' ' : ''}${finalText}`;
     clearTimeout(flushRef.current);
@@ -132,6 +135,7 @@ export default function ChatPanel({ isOpen, onClose, onExposeReset, onMessagesCh
     queueRef.current = '';
     clearTimeout(flushRef.current);
     playerRef.current?.stop();
+    initialMenuSpeechRef.current = false;
     setMessages([]);
     setJourney(resetBBVADemo());
     resetCXASSession();
@@ -139,6 +143,17 @@ export default function ChatPanel({ isOpen, onClose, onExposeReset, onMessagesCh
   }, []);
   useEffect(() => { onExposeReset?.(resetChat); }, [onExposeReset, resetChat]);
   useEffect(() => { if (resetSignal) resetChat(); }, [resetChat, resetSignal]);
+  const showWelcome = isOpen && !intent;
+  const showHomeMenu = showWelcome && messages.length === 0;
+  useEffect(() => {
+    if (!showHomeMenu) {
+      initialMenuSpeechRef.current = false;
+      return;
+    }
+    if (initialMenuSpeechRef.current) return;
+    initialMenuSpeechRef.current = true;
+    speak(`¡Hola, ${greetingName}! Soy Azul, tu asistencia virtual de BBVA y voy a ayudarte con tu consulta. Para guiarte, escribí palabras clave o Menú para conocer los temas principales. ¿Cómo te ayudo?`);
+  }, [greetingName, showHomeMenu, speak]);
   useEffect(() => {
     if (!isOpen) return;
     if (intent && initialIntentRef.current !== intent) {
@@ -162,7 +177,10 @@ export default function ChatPanel({ isOpen, onClose, onExposeReset, onMessagesCh
         return <button key={action.utterance || `cxas-action-${index}`} className="cp-ai-pill" disabled={isResponding || !action.utterance} onClick={() => handleWidgetAction(action.utterance)}><strong>{action.label}</strong>{action.description && <small>{action.description}</small>}</button>;
       })}</div>;
     }
-    if (widgetType === 'bbva_comparison') return <ProductComparison title={payload.title} products={payload.products} productDetails={payload.productDetails} features={payload.features} onAction={handleWidgetAction} />;
+    if (widgetType === 'bbva_comparison') {
+      if (Array.isArray(payload.productDetails)) return <BBVAComparison title={payload.title} productDetails={payload.productDetails} features={payload.features} onAction={handleWidgetAction} disabled={isResponding} />;
+      return <ProductComparison title={payload.title} products={payload.products} productDetails={payload.productDetails} features={payload.features} onAction={handleWidgetAction} />;
+    }
     if (payload.type === 'trip_estimate') return <TripEstimate payload={payload} onSave={() => { updateJourney({ estimate: payload }); addBot('Guardé el estimado ilustrativo en tu plan de viaje.'); }} />;
     if (payload.type === 'application_summary') return <ApplicationSummary product={payload.product} onComplete={(application) => { updateJourney({ application, newCard: { id: payload.product.id, status: 'ready_for_demo_activation' } }); addBot('Solicitud de demostración aprobada. En esta demostración, preparamos el correo de confirmación y el acceso a la activación.'); addPayload({ type: 'activation', product: payload.product }); }} />;
     if (payload.type === 'activation') return <ActivationWidget product={payload.product} onComplete={(result) => { updateJourney({ newCard: result }); addBot('Activación simulada completada.'); }} />;
@@ -170,8 +188,6 @@ export default function ChatPanel({ isOpen, onClose, onExposeReset, onMessagesCh
     return null;
   };
 
-  const showWelcome = isOpen && !intent;
-  const showHomeMenu = showWelcome && messages.length === 0;
   return <aside className={`chat-panel${isOpen ? ' open' : ''}${isExpanded ? ' expanded' : ''}`} aria-label="Azul, asistente BBVA Argentina">
     <div className="cp-panel-header"><img className="cp-assistant-mark" src={assistantMark} alt="" /><div className="cp-header-identity"><strong>Azul</strong><span><i className="cp-availability-dot" aria-hidden="true" />Disponible</span></div><div className="cp-header-actions"><button className="cp-expand-btn" onClick={() => setIsExpanded((expanded) => !expanded)} aria-label={isExpanded ? 'Contraer Azul' : 'Expandir Azul'} title={isExpanded ? 'Contraer' : 'Expandir'}>{isExpanded ? <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 15H5v4M5 15l5 5M15 9h4V5M19 9l-5-5" /></svg> : <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5M3 3l6 6M16 21h5v-5M21 21l-6-6" /></svg>}</button><button className="cp-close-btn" onClick={onClose} aria-label="Cerrar Azul">×</button></div></div>
     <div className="cp-messages" ref={messagesRef} role="log" aria-live="polite">
