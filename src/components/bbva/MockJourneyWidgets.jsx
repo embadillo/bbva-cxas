@@ -3,27 +3,29 @@ import { activateMockCard, createMockMarketplacePurchase, runMockCreditDecision,
 
 const money = (amount) => `ARS ${amount.toLocaleString('es-AR')}`;
 
-export function ProductComparison({ products, onAction }) {
+export function ProductComparison({ title, products = [], productDetails = [], features = [], onAction }) {
+  const comparisonProducts = products.length ? products : productDetails;
   return <section className="comparison-widget" aria-label="Comparación de productos">
     <div className="comparison-widget-heading">
       <span className="widget-eyebrow">Comparación de demostración</span>
-      <p>Revisá las opciones y elegí la que mejor acompaña tu momento.</p>
+      <p>{title || 'Revisá las opciones y elegí la que mejor acompaña tu momento.'}</p>
     </div>
     <div className="comparison-grid">
-      {products.map((product) => <article key={product.id} className="comparison-product">
-        <div className="comparison-card-art" style={{ background: `linear-gradient(135deg, ${product.accent}, ${product.accent2})` }}>
-          <strong>BBVA</strong><span>{product.tier}</span><b aria-hidden="true">A</b>
+      {comparisonProducts.map((product, index) => <article key={product.id || product.productId || index} className="comparison-product">
+        <div className="comparison-card-art" style={product.imageUris?.[0] ? { backgroundImage: `url(${product.imageUris[0]})` } : { background: `linear-gradient(135deg, ${product.accent || '#072146'}, ${product.accent2 || '#1464a5'})` }}>
+          {product.imageUris?.[0] ? <img src={product.imageUris[0]} alt="" /> : <><strong>BBVA</strong><span>{product.tier}</span><b aria-hidden="true">A</b></>}
         </div>
-        <div className="comparison-product-copy"><h3>{product.name}</h3><p>{product.tagline}</p></div>
+        <div className="comparison-product-copy"><h3>{product.name || product.title}</h3><p>{product.tagline || product.subtitle}</p></div>
         <dl>
-          <div><dt>Mantenimiento</dt><dd>{product.annualFee}</dd></div>
-          <div><dt>Viajes</dt><dd>{product.travelBenefit}</dd></div>
+          <div><dt>Mantenimiento</dt><dd>{product.annualFee || product.price}</dd></div>
+          <div><dt>Viajes</dt><dd>{product.travelBenefit || product.benefit}</dd></div>
           <div><dt>Recompensas</dt><dd>{product.rewards}</dd></div>
           <div><dt>Elegibilidad</dt><dd>{product.eligibility}</dd></div>
         </dl>
-        <button className="cs-btn" onClick={() => onAction?.(`Quiero iniciar una solicitud de demostración para ${product.name}`)}>Elegir esta opción</button>
+        {product.ctaUtterance || product.uri || product.name ? <button className="cs-btn" onClick={() => product.ctaUtterance ? onAction?.(product.ctaUtterance) : product.uri ? window.open(product.uri, '_blank', 'noopener,noreferrer') : onAction?.(`Quiero iniciar una solicitud de demostración para ${product.name}`)}>{product.ctaLabel || 'Elegir esta opción'}</button> : null}
       </article>)}
     </div>
+    {features.length > 0 && <div className="comparison-features">{features.map((feature, index) => <div key={feature.label || index}><strong>{feature.label}</strong><span>{feature.productSpecs?.map((spec) => spec.text).filter(Boolean).join(' · ')}</span></div>)}</div>}
   </section>;
 }
 

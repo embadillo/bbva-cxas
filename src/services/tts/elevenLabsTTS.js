@@ -1,5 +1,4 @@
 import { runtime } from '../../config/runtime';
-import { cleanTextForTTS } from './speechNormalization';
 
 export function createElevenLabsPlayer({ onPlaying, onFinished } = {}) {
   let requestId = 0;
@@ -18,7 +17,7 @@ export function createElevenLabsPlayer({ onPlaying, onFinished } = {}) {
   };
 
   const play = async (text) => {
-    const speechText = cleanTextForTTS(text, { locale: 'es-AR', currency: 'ARS' });
+    const speechText = String(text ?? '').trim();
     if (!speechText || !runtime.ttsEndpoint) return;
     stop();
     const currentId = requestId;
@@ -30,6 +29,8 @@ export function createElevenLabsPlayer({ onPlaying, onFinished } = {}) {
         body: JSON.stringify({ text: speechText }), signal: controller.signal,
       });
       if (!response.ok) throw new Error(`TTS HTTP ${response.status}`);
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.toLowerCase().includes('audio/mpeg')) throw new Error(`Unexpected TTS content type: ${contentType || 'missing'}`);
       const url = URL.createObjectURL(await response.blob());
       objectUrls.add(url);
       if (currentId !== requestId) return;

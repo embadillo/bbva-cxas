@@ -58,7 +58,7 @@ async function waitForMessenger(timeoutMs = 6000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const candidate = getMessenger();
-    if (candidate && typeof candidate.sendRequest === 'function') return candidate;
+    if (candidate && typeof candidate.sendQuery === 'function') return candidate;
     await sleep(50);
   }
   throw new Error('CXAS SDK messenger is not ready.');

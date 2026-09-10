@@ -1,4 +1,5 @@
 import { useAuth } from '../../context/AuthContext';
+import bbvaLogo from '../../assets/brand/Captura de pantalla 2026-09-09 211354.png';
 
 export default function TopNav({ onOpenChat, onSignIn, onSignOut, onResetChat, chatOpen = false }) {
   const { demoMode, customerName } = useAuth();
@@ -6,7 +7,7 @@ export default function TopNav({ onOpenChat, onSignIn, onSignOut, onResetChat, c
   return (
     <nav className="top-nav" role="navigation" aria-label="Navegación principal">
       <div className="nav-logo">
-        <span className="nav-logo-mark" aria-hidden="true">BBVA</span>
+        <img className="nav-logo-mark" src={bbvaLogo} alt="BBVA" />
       </div>
 
       <div className="nav-links">
