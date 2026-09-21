@@ -45,6 +45,11 @@ export function resolveWidgetType(payload, metadata = {}) {
 
 export function normalizeWidgetPayload(rawOutput, metadata = {}) {
   if (!rawOutput || typeof rawOutput !== 'object') return null;
+  const outerType = rawOutput.type;
+  const outerSummary = rawOutput.summary;
+  const outerTurnIndex = rawOutput.turnIndex;
+  const outerFunctionName = rawOutput.functionName || rawOutput.function?.name || rawOutput.toolName || metadata.functionName;
+  const knownOuterType = widgetAliases[String(outerType || outerFunctionName || '').toLowerCase()];
   let candidate = rawOutput;
   for (const key of wrapperKeys) {
     const parsed = parseJson(candidate?.[key]);
@@ -55,22 +60,30 @@ export function normalizeWidgetPayload(rawOutput, metadata = {}) {
   }
 
   if (candidate.type === 'custom_template' && candidate.payload && typeof candidate.payload === 'object' && !Array.isArray(candidate.payload)) {
+    if (!knownOuterType) return null;
     candidate = {
       ...candidate.payload,
       copy: candidate.payload.copy,
-      summary: candidate.summary,
-      turnIndex: candidate.turnIndex,
+      summary: candidate.summary || outerSummary,
+      turnIndex: candidate.turnIndex ?? outerTurnIndex,
     };
   }
 
   const merged = { ...candidate };
-  if (rawOutput.summary && !merged.summary) merged.summary = rawOutput.summary;
-  if (rawOutput.turnIndex !== undefined && merged.turnIndex === undefined) merged.turnIndex = rawOutput.turnIndex;
+  if (!merged.type && knownOuterType) merged.type = knownOuterType;
+  if (outerSummary && !merged.summary) merged.summary = outerSummary;
+  if (outerTurnIndex !== undefined && merged.turnIndex === undefined) merged.turnIndex = outerTurnIndex;
   const resolvedType = resolveWidgetType(merged, {
     ...metadata,
-    functionName: rawOutput.functionName || rawOutput.function?.name || rawOutput.toolName || metadata.functionName,
+    functionName: outerFunctionName,
   });
   if (!resolvedType) return null;
+  if (import.meta.env?.DEV && resolvedType === 'bbva_comparison') {
+    console.debug('[BBVA] Direct comparison payload received', {
+      title: merged.title,
+      productIds: merged.productDetails?.map((product) => product?.productId || product?.id || ''),
+    });
+  }
   return { ...merged, copy: merged.copy, type: resolvedType };
 }
 

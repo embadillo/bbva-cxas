@@ -42,6 +42,7 @@ function isControlOnly(output, text, payload) {
 
 export function normalizeCXASResponseOutputs(outputs) {
   const seen = new Set();
+  const seenComparisonIdentities = new Set();
   return outputs.map((rawOutput) => {
     const output = parseJson(rawOutput);
     if (!output || (typeof output !== 'object' && typeof output !== 'string')) return null;
@@ -59,6 +60,11 @@ export function normalizeCXASResponseOutputs(outputs) {
     const signature = payload
       ? (widgetType === 'bbva_comparison' ? widgetSignature(payload, turnIndex) : `${turnIndex}:${widgetType}:${stableSignature(payload)}`)
       : `${turnIndex}:text:${text.replace(/\s+/g, ' ')}`;
+    if (widgetType === 'bbva_comparison') {
+      const identity = `${payload.title || ''}:${Array.isArray(payload.productDetails) ? payload.productDetails.map((product) => product?.productId || product?.id || '').join('|') : ''}`;
+      if (seenComparisonIdentities.has(identity)) return null;
+      seenComparisonIdentities.add(identity);
+    }
     if (seen.has(signature)) return null;
     seen.add(signature);
     return { text, payload };

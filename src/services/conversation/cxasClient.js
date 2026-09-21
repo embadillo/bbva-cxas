@@ -44,9 +44,27 @@ function extractWidgetToolOutputs(value, results = [], context = {}) {
   return results;
 }
 
+function extractCustomerStructuredOutputs(data) {
+  const results = [];
+  const add = (value, turnIndex) => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return;
+    results.push(turnIndex === undefined ? value : { ...value, turnIndex });
+  };
+  const addContainer = (container, turnIndex) => {
+    if (!container || typeof container !== 'object') return;
+    add(container, turnIndex);
+    ['payload', 'json', 'customPayload', 'data'].forEach((key) => add(container[key], turnIndex));
+    if (Array.isArray(container.chunks)) container.chunks.forEach((chunk) => addContainer(chunk, turnIndex));
+  };
+  if (Array.isArray(data?.outputs)) data.outputs.forEach((output) => addContainer(output, output?.turnIndex));
+  if (Array.isArray(data?.messages)) data.messages.forEach((message) => addContainer(message, message?.turnIndex));
+  return results;
+}
+
 function extractOutputs(data) {
-  const outputs = Array.isArray(data?.outputs) ? [...data.outputs] : Array.isArray(data?.messages) ? [...data.messages] : [];
-  const widgetOutputs = extractWidgetToolOutputs(data);
+  const outputs = extractCustomerStructuredOutputs(data);
+  // Compatibility-only fallback for the legacy bbva_comparison tool transport.
+  const widgetOutputs = extractWidgetToolOutputs(data?.diagnosticInfo);
   return outputs.concat(widgetOutputs);
 }
 
