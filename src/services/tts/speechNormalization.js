@@ -67,7 +67,13 @@ export function normalizeForTTS(text, { locale = 'es-AR', currency = 'ARS' } = {
     });
   }
 
-  return speech.replace(/\s+/g, ' ').trim();
+  // Small phonetic cues for Edge's Spanish voice. These affect speech only,
+  // never the visible assistant response.
+  return speech
+    .replace(/\bdomicilio\b/gi, 'domi-cilio')
+    .replace(/\btravel\b/gi, 'trável')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 export function cleanTextForTTS(text, options) {

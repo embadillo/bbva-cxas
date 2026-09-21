@@ -119,14 +119,26 @@ export default function FloatingChatWidget({
     }
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     const rec = new SR();
-    rec.lang = 'en-CA';
-    rec.interimResults = false;
+    rec.lang = 'es-AR';
+    rec.interimResults = true;
+    rec.continuous = false;
+    rec.maxAlternatives = 1;
+    let finalTranscript = '';
     rec.onresult = (e) => {
-      const transcript = e.results[0][0].transcript;
-      onSend?.(transcript);
+      let interimTranscript = '';
+      for (let index = e.resultIndex; index < e.results.length; index += 1) {
+        const transcript = e.results[index][0]?.transcript || '';
+        if (e.results[index].isFinal) finalTranscript += transcript;
+        else interimTranscript += transcript;
+      }
+      const transcript = (finalTranscript || interimTranscript).trim();
+      if (e.results[e.results.length - 1]?.isFinal && transcript) onSend?.(transcript);
     };
     rec.onend = () => setVoiceActive(false);
-    rec.onerror = () => setVoiceActive(false);
+    rec.onerror = (event) => {
+      if (import.meta.env.DEV) console.warn('[Azul Voice Recognition]', { error: event.error, message: event.message });
+      setVoiceActive(false);
+    };
     rec.start();
     recognitionRef.current = rec;
     setVoiceActive(true);

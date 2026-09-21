@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { sendConversationTurn } from '../../services/conversation/conversationService';
-import { createElevenLabsPlayer } from '../../services/tts/elevenLabsTTS';
+import { createBrowserSpeechPlayer, isSupported as isBrowserSpeechSupported } from '../../services/tts/browserSpeechTTS';
 import { normalizeForTTS } from '../../services/tts/speechNormalization';
 import { createMockMarketplacePurchase } from '../../services/mockBankingService';
 import { loadDemoState, resetBBVADemo, saveDemoState } from '../../services/mockJourneyService';
@@ -76,8 +76,9 @@ export default function ChatPanel({ isOpen, onClose, onExposeReset, onMessagesCh
   const [inputVal, setInputVal] = useState('');
   const [isResponding, setIsResponding] = useState(false);
   const [voiceActive, setVoiceActive] = useState(false);
+  const [voiceStatus, setVoiceStatus] = useState('');
   const [isExpanded, setIsExpanded] = useState(false);
-  const [ttsEnabled, setTtsEnabled] = useState(Boolean(import.meta.env.VITE_ELEVENLABS_TTS_ENDPOINT));
+  const [ttsEnabled, setTtsEnabled] = useState(isBrowserSpeechSupported());
   const [ttsPlaying, setTtsPlaying] = useState(false);
     useEffect(() => {
       document.body.classList.toggle('azul-expanded', isOpen && isExpanded);
@@ -85,49 +86,112 @@ export default function ChatPanel({ isOpen, onClose, onExposeReset, onMessagesCh
     }, [isExpanded, isOpen]);
   const [journey, setJourney] = useState(loadDemoState);
   const messagesRef = useRef(null);
-  const queueRef = useRef('');
-  const flushRef = useRef(null);
   const playerRef = useRef(null);
   const sendRef = useRef(null);
   const initialIntentRef = useRef(null);
   const recognitionRef = useRef(null);
+  const voiceActiveRef = useRef(false);
+  const ttsPlayingRef = useRef(false);
+  const isRespondingRef = useRef(isResponding);
+
+  useEffect(() => {
+    isRespondingRef.current = isResponding;
+  }, [isResponding]);
+
+  const setPlaying = useCallback((playing) => {
+    ttsPlayingRef.current = playing;
+    setTtsPlaying(playing);
+  }, []);
+
+  const stopRecognition = useCallback(() => {
+    recognitionRef.current?.stop?.();
+    recognitionRef.current = null;
+    voiceActiveRef.current = false;
+    setVoiceActive(false);
+  }, []);
 
   const speak = useCallback((text) => {
     if (!ttsEnabled) return;
     const finalText = normalizeForTTS(text);
     if (!finalText) return;
-    queueRef.current += `${queueRef.current ? ' ' : ''}${finalText}`;
-    clearTimeout(flushRef.current);
-    flushRef.current = setTimeout(() => {
-      const queued = queueRef.current;
-      queueRef.current = '';
-      playerRef.current?.play(queued);
-    }, 350);
-  }, [ttsEnabled]);
+    stopRecognition();
+    playerRef.current?.play(finalText);
+  }, [stopRecognition, ttsEnabled]);
 
-  const toggleVoice = useCallback(() => {
+  const startRecognition = useCallback(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) return;
-    if (voiceActive) {
-      recognitionRef.current?.stop();
-      setVoiceActive(false);
-      return;
-    }
+    setVoiceStatus('');
     const recognition = new SpeechRecognition();
     recognition.lang = 'es-AR';
-    recognition.interimResults = false;
-    recognition.onresult = (event) => setInputVal(event.results[0][0].transcript);
-    recognition.onend = () => setVoiceActive(false);
-    recognition.onerror = () => setVoiceActive(false);
+    recognition.interimResults = true;
+    recognition.continuous = false;
+    recognition.maxAlternatives = 1;
+    let finalTranscript = '';
+    recognition.onresult = (event) => {
+      let interimTranscript = '';
+      for (let index = event.resultIndex; index < event.results.length; index += 1) {
+        const transcript = event.results[index][0]?.transcript || '';
+        if (event.results[index].isFinal) finalTranscript += transcript;
+        else interimTranscript += transcript;
+      }
+      const nextText = (finalTranscript || interimTranscript).trim();
+      if (nextText) {
+        setInputVal(nextText);
+        setVoiceStatus('');
+        if (finalTranscript.trim()) {
+          stopRecognition();
+          sendRef.current?.(finalTranscript.trim());
+        }
+      }
+    };
+    recognition.onend = () => {
+      recognitionRef.current = null;
+      voiceActiveRef.current = false;
+      setVoiceActive(false);
+    };
+    recognition.onerror = (event) => {
+      if (import.meta.env.DEV) console.warn('[Azul Voice Recognition]', { error: event.error, message: event.message });
+      if (event.error === 'audio-capture') setVoiceStatus('No se encontró un micrófono.');
+      else if (event.error === 'not-allowed' || event.error === 'service-not-allowed') setVoiceStatus('Necesito permiso para usar el micrófono.');
+      else if (event.error === 'network') setVoiceStatus('No se pudo conectar al reconocimiento de voz.');
+      else if (event.error === 'no-speech' || event.error === 'aborted') setVoiceStatus('');
+      recognitionRef.current = null;
+      voiceActiveRef.current = false;
+      setVoiceActive(false);
+    };
     recognitionRef.current = recognition;
-    recognition.start();
+    voiceActiveRef.current = true;
     setVoiceActive(true);
-  }, [voiceActive]);
+    try {
+      recognition.start();
+    } catch (error) {
+      if (import.meta.env.DEV) console.warn('[Azul Voice Recognition]', { error: 'start-failed', message: error.message });
+      stopRecognition();
+    }
+  }, [stopRecognition]);
+
+  const toggleVoice = useCallback(() => {
+    if (voiceActiveRef.current) {
+      stopRecognition();
+      setVoiceStatus('');
+      return;
+    }
+    playerRef.current?.stop();
+    setPlaying(false);
+    startRecognition();
+  }, [setPlaying, startRecognition, stopRecognition]);
 
   useEffect(() => {
-    playerRef.current = createElevenLabsPlayer({ onPlaying: setTtsPlaying, onFinished: () => setTtsPlaying(false) });
-    return () => { queueRef.current = ''; clearTimeout(flushRef.current); playerRef.current?.stop(); };
-  }, []);
+    playerRef.current = createBrowserSpeechPlayer({
+      onPlaying: setPlaying,
+      onFinished: (reason) => {
+        setPlaying(false);
+        if (reason === 'ended' && !voiceActiveRef.current && !isRespondingRef.current) startRecognition();
+      },
+    });
+    return () => { playerRef.current?.stop(); stopRecognition(); setPlaying(false); };
+  }, [setPlaying, startRecognition, stopRecognition]);
 
   const addBot = useCallback((text) => {
     const display = stripMarkdown(text);
@@ -177,14 +241,14 @@ export default function ChatPanel({ isOpen, onClose, onExposeReset, onMessagesCh
   useEffect(() => { onMessagesChange?.(messages); }, [messages, onMessagesChange]);
   useEffect(() => { onExposeSend?.((text) => sendRef.current?.(text)); }, [onExposeSend]);
   const resetChat = useCallback(() => {
-    queueRef.current = '';
-    clearTimeout(flushRef.current);
     playerRef.current?.stop();
+    stopRecognition();
+    setPlaying(false);
     setMessages([]);
     setJourney(resetBBVADemo());
     resetCXASSession();
     resetCXASResponseGuard();
-  }, []);
+  }, [setPlaying, stopRecognition]);
   useEffect(() => { onExposeReset?.(resetChat); }, [onExposeReset, resetChat]);
   useEffect(() => { if (resetSignal) resetChat(); }, [resetChat, resetSignal]);
   const showHomeMenu = isOpen && !intent && messages.length === 0;
@@ -238,10 +302,12 @@ export default function ChatPanel({ isOpen, onClose, onExposeReset, onMessagesCh
       {isResponding && <div className="cp-typing" aria-label="Azul está escribiendo"><span /><span /><span /></div>}
     </div>
     <div className="cp-input-bar">
-      <button className={`cp-icon-input-btn cp-speaker-btn${ttsEnabled ? ' active' : ''}${ttsPlaying ? ' speaking' : ''}`} onClick={() => { setTtsEnabled((enabled) => !enabled); queueRef.current = ''; clearTimeout(flushRef.current); playerRef.current?.stop(); }} aria-label={ttsEnabled ? 'Silenciar voz' : 'Activar voz'}>{ttsEnabled ? '◖)' : '◖'}</button>
-      <button className={`cp-icon-input-btn cp-mic-btn${voiceActive ? ' active' : ''}`} onClick={toggleVoice} disabled={isResponding} aria-label={voiceActive ? 'Detener micrófono' : 'Usar micrófono'}>
+      <button className={`cp-icon-input-btn cp-speaker-btn${ttsEnabled ? ' active' : ''}${ttsPlaying ? ' speaking' : ''}`} onClick={() => { setTtsEnabled((enabled) => !enabled); playerRef.current?.stop(); setPlaying(false); }} aria-label={ttsEnabled ? 'Silenciar voz' : 'Activar voz'}>{ttsEnabled ? '◖)' : '◖'}</button>
+      <button className={`cp-icon-input-btn cp-mic-btn${voiceActive ? ' active' : ''}`} onClick={toggleVoice} disabled={isResponding || (ttsPlaying && !voiceActive)} aria-label={voiceActive ? 'Detener micrófono' : 'Usar micrófono'} title={voiceActive ? 'Escuchando…' : 'Usar micrófono'}>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1M12 18v4M8 22h8"/></svg>
       </button>
+      {voiceActive && <span className="cp-voice-status" aria-live="polite">Escuchando…</span>}
+      {!voiceActive && voiceStatus && <span className="cp-voice-status" aria-live="polite">{voiceStatus}</span>}
       <input className="cp-text-input" value={inputVal} onChange={(event) => setInputVal(event.target.value)} onKeyDown={(event) => event.key === 'Enter' && sendMessage()} placeholder="Escribí tu consulta…" disabled={isResponding} />
       <button className="cp-send-btn" onClick={() => sendMessage()} disabled={isResponding} aria-label="Enviar mensaje">→</button>
     </div>
