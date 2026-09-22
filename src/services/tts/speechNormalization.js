@@ -21,6 +21,19 @@ function numberInSpanish(value) {
     return `${hundreds[Math.floor(n / 100)]}${n % 100 ? ` ${underThousand(n % 100)}` : ''}`;
   };
   if (number < 1000) return underThousand(number);
+  if (number >= 1000000) {
+    const millions = Math.floor(number / 1000000);
+    const remainder = number % 1000000;
+    const millionPrefix = millions === 1 ? 'un millón' : `${underThousand(millions)} millones`;
+    if (!remainder) return millionPrefix;
+    const thousands = Math.floor(remainder / 1000);
+    const unitsRemainder = remainder % 1000;
+    const remainderText = [
+      thousands ? (thousands === 1 ? 'mil' : `${underThousand(thousands)} mil`) : '',
+      unitsRemainder ? underThousand(unitsRemainder) : '',
+    ].filter(Boolean).join(' ');
+    return `${millionPrefix} ${remainderText}`;
+  }
   const thousands = Math.floor(number / 1000);
   const remainder = number % 1000;
   const prefix = thousands === 1 ? 'mil' : `${underThousand(thousands)} mil`;
@@ -48,6 +61,7 @@ export function normalizeForTTS(text, { locale = 'es-AR', currency = 'ARS' } = {
 
   speech = speech
     .replace(/\bBBVA\b/gi, 'bebeuvea')
+    .replace(/\bUSD\s+1\s+de\s+consumo\b/gi, 'un dólar gastado')
     .replace(/\bUSD\b/gi, 'dólares')
     .replace(/\bU\$S\b/gi, 'dólares')
     .replace(/\bVIP\b/gi, 'viaipi')
@@ -70,8 +84,12 @@ export function normalizeForTTS(text, { locale = 'es-AR', currency = 'ARS' } = {
   // Small phonetic cues for Edge's Spanish voice. These affect speech only,
   // never the visible assistant response.
   return speech
-    .replace(/\bdomicilio\b/gi, 'domi-cilio')
-    .replace(/\btravel\b/gi, 'trável')
+    .replace(/\bun millón pesos\b/gi, 'un millón de pesos')
+    .replace(/\bdiez millones pesos\b/gi, 'diez millones de pesos')
+    .replace(/\bdomicilio\b/gi, 'do-mi-sí-lio')
+    .replace(/\bemiliano\b/gi, 'Emi-li-a-no')
+    .replace(/\bplatinum\b/gi, 'Plá-ti-num')
+    .replace(/\btravel\b/gi, 'Trá-vel')
     .replace(/\s+/g, ' ')
     .trim();
 }

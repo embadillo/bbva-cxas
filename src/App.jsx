@@ -51,7 +51,6 @@ function AppContent() {
     <TopNav onOpenChat={() => setChatOpen((open) => !open)} onSignIn={() => openChat('Quiero conocer el modo demo')} onSignOut={handleSignOut} onResetChat={() => resetRef.current?.()} chatOpen={chatOpen} />
     <Dashboard onOpenChat={openChat} />
     <ChatPanel isOpen={chatOpen} onClose={() => setChatOpen(false)} intent={chatIntent} resetSignal={0} onExposeReset={(reset) => { resetRef.current = reset; }} onMessagesChange={setMessages} onExposeSend={(send) => { sendRef.current = send; }} />
-    {chatOpen && <div className="chat-backdrop" onClick={() => setChatOpen(false)} aria-hidden="true" />}
     {!chatOpen && <FloatingChatWidget messages={messages} isOpen={false} onOpen={() => openChat()} onClose={() => {}} onSend={(text) => sendRef.current?.(text)} />}
   </>;
 }

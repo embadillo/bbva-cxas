@@ -3979,7 +3979,7 @@ body { background: var(--bbva-paper); color: var(--bbva-ink); font-family: var(-
 .footer-chat-link { color: var(--bbva-blue); }
 .chat-panel { top: var(--nav-h); right: 0; left: auto; width: min(500px, 100vw); transform: translateX(100%); border-left: 1px solid var(--bbva-rule); box-shadow: -14px 0 34px rgba(7,33,70,.12); }
 .chat-panel.open { transform: translateX(0); }
-.chat-backdrop { background: rgba(7,33,70,.18); backdrop-filter: none; }
+.chat-backdrop { background: transparent !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
 .cp-panel-header { min-height: 70px; padding: 14px 22px; }
 .cp-panel-header strong { font-family: var(--ui); font-size: 15px; font-weight: 700; }
 .cp-panel-header span { color: var(--bbva-muted); }
