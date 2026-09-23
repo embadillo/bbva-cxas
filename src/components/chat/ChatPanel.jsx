@@ -93,10 +93,15 @@ export default function ChatPanel({ isOpen, onClose, onExposeReset, onMessagesCh
   const voiceActiveRef = useRef(false);
   const ttsPlayingRef = useRef(false);
   const isRespondingRef = useRef(isResponding);
+  const ttsEnabledRef = useRef(ttsEnabled);
 
   useEffect(() => {
     isRespondingRef.current = isResponding;
   }, [isResponding]);
+
+  useEffect(() => {
+    ttsEnabledRef.current = ttsEnabled;
+  }, [ttsEnabled]);
 
   const setPlaying = useCallback((playing) => {
     ttsPlayingRef.current = playing;
@@ -111,12 +116,12 @@ export default function ChatPanel({ isOpen, onClose, onExposeReset, onMessagesCh
   }, []);
 
   const speak = useCallback((text) => {
-    if (!ttsEnabled) return;
+    if (!ttsEnabledRef.current) return;
     const finalText = normalizeForTTS(text);
     if (!finalText) return;
     stopRecognition();
     playerRef.current?.play(finalText);
-  }, [stopRecognition, ttsEnabled]);
+  }, [stopRecognition]);
 
   const startRecognition = useCallback(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -254,10 +259,12 @@ export default function ChatPanel({ isOpen, onClose, onExposeReset, onMessagesCh
   const showHomeMenu = isOpen && !intent && messages.length === 0;
   useEffect(() => {
     return subscribeCXASWelcome(({ outputs }) => {
-      const response = normalizeCXASResponseOutputs(outputs);
-      const mainMenu = response.payloads.find(isMainMenuPayload);
-      if (response.text && !mainMenu) addBot(response.text);
-      response.payloads.forEach((payload) => addPayload(payload, isMainMenuPayload(payload) ? response.text : ''));
+      const normalizedOutputs = normalizeCXASResponseOutputs(outputs);
+      const responseText = normalizedOutputs.map((output) => output.text).filter(Boolean).join('\n').trim();
+      const payloads = normalizedOutputs.map((output) => output.payload).filter(Boolean);
+      const mainMenu = payloads.find(isMainMenuPayload);
+      if (responseText && !mainMenu) addBot(responseText);
+      payloads.forEach((payload) => addPayload(payload, isMainMenuPayload(payload) ? responseText : ''));
     });
   }, [addBot, addPayload]);
   useEffect(() => {

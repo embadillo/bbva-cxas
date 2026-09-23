@@ -60,7 +60,7 @@ export function normalizeForTTS(text, { locale = 'es-AR', currency = 'ARS' } = {
     .trim();
 
   speech = speech
-    .replace(/\bBBVA\b/gi, 'bebeuvea')
+    .replace(/\bBBVA\b/gi, 'beh-beh-úve-a,')
     .replace(/\bUSD\s+1\s+de\s+consumo\b/gi, 'un dólar gastado')
     .replace(/\bpor\s+USD\b/gi, 'por dólar gastado')
     .replace(/\bUSD\b/gi, 'dólar gastado')

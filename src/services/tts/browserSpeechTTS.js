@@ -1,6 +1,6 @@
 const DEFAULT_SETTINGS = {
   lang: 'es-AR',
-  rate: 0.96,
+  rate: 0.92,
   pitch: 1,
   volume: 1,
 };
@@ -67,10 +67,10 @@ export function speak(text, options = {}) {
   const normalizedText = String(text || '').trim();
   const utterance = new window.SpeechSynthesisUtterance(normalizedText);
   const settings = { ...DEFAULT_SETTINGS, ...speechSettings };
-  const acronymLetterSequence = /\bB\s+B\s+V\s+A\b|\bBBVA\b|\bbebeuvea\b/i.test(normalizedText);
+  const acronymLetterSequence = /\bB\s+B\s+V\s+A\b|\bBBVA\b|\bbeh-beh-úve-a\b/i.test(normalizedText);
   utterance.lang = settings.lang;
-  utterance.rate = acronymLetterSequence ? 1.02 : settings.rate;
-  utterance.pitch = settings.pitch;
+  utterance.rate = acronymLetterSequence ? 0.91 : settings.rate;
+  utterance.pitch = acronymLetterSequence ? 0.96 : settings.pitch;
   utterance.volume = settings.volume;
   const voice = getPreferredVoice();
   if (!voice) return null;

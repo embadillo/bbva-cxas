@@ -40,10 +40,11 @@ function isControlOnly(output, text, payload) {
   return output?.turnCompleted === true || output?.type === 'turnCompleted' || output?.type === 'turn_completed';
 }
 
-export function normalizeCXASResponseOutputs(outputs) {
+export function normalizeCXASResponseOutputs(outputs = []) {
   const seen = new Set();
   const seenComparisonIdentities = new Set();
-  return outputs.map((rawOutput) => {
+  const safeOutputs = Array.isArray(outputs) ? outputs : [];
+  return safeOutputs.map((rawOutput) => {
     const output = parseJson(rawOutput);
     if (!output || (typeof output !== 'object' && typeof output !== 'string')) return null;
     const text = String(extractText(output) || '').trim();
