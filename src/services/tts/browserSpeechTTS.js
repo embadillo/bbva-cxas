@@ -64,10 +64,12 @@ export function speak(text, options = {}) {
   installVoicesListener();
   synthesis.cancel();
   const { onstart, onend, onerror, ...speechSettings } = options;
-  const utterance = new window.SpeechSynthesisUtterance(String(text || '').trim());
+  const normalizedText = String(text || '').trim();
+  const utterance = new window.SpeechSynthesisUtterance(normalizedText);
   const settings = { ...DEFAULT_SETTINGS, ...speechSettings };
+  const acronymLetterSequence = /\bB\s+B\s+V\s+A\b|\bBBVA\b|\bbebeuvea\b/i.test(normalizedText);
   utterance.lang = settings.lang;
-  utterance.rate = settings.rate;
+  utterance.rate = acronymLetterSequence ? 1.02 : settings.rate;
   utterance.pitch = settings.pitch;
   utterance.volume = settings.volume;
   const voice = getPreferredVoice();

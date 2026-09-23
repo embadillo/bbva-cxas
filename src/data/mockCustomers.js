@@ -1,7 +1,7 @@
 export const demoCustomer = {
   customerId: 'BBVA_DEMO_001',
-  firstName: 'Emiliano',
-  fullName: 'Emiliano Badillo',
+  firstName: 'Lisa',
+  fullName: 'Lisa',
   authenticated: true,
   locale: 'es-AR',
   currentCardId: 'bbva-demo-clasica',

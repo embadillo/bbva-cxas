@@ -62,8 +62,9 @@ export function normalizeForTTS(text, { locale = 'es-AR', currency = 'ARS' } = {
   speech = speech
     .replace(/\bBBVA\b/gi, 'bebeuvea')
     .replace(/\bUSD\s+1\s+de\s+consumo\b/gi, 'un dólar gastado')
-    .replace(/\bUSD\b/gi, 'dólares')
-    .replace(/\bU\$S\b/gi, 'dólares')
+    .replace(/\bpor\s+USD\b/gi, 'por dólar gastado')
+    .replace(/\bUSD\b/gi, 'dólar gastado')
+    .replace(/\bU\$S\b/gi, 'dólar gastado')
     .replace(/\bVIP\b/gi, 'viaipi')
     .replace(/\+/g, ' plus ');
 

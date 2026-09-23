@@ -16,12 +16,20 @@ function AppContent() {
   const resetRef = useRef(null);
   const lastFocusRef = useRef(null);
 
+  const closeChat = () => {
+    setChatOpen(false);
+    setChatIntent(null);
+    document.body.classList.remove('azul-open');
+    document.body.classList.remove('azul-expanded');
+    document.body.style.overflow = '';
+  };
+
   const openChat = (intent = null) => {
     lastFocusRef.current = document.activeElement;
     setChatOpen(true);
     if (intent) setChatIntent(intent);
   };
-  const handleSignOut = () => { signOut(); resetRef.current?.(); setChatOpen(false); };
+  const handleSignOut = () => { signOut(); resetRef.current?.(); closeChat(); };
 
   useEffect(() => {
     if (!chatOpen) {
@@ -50,7 +58,7 @@ function AppContent() {
     <CxasSdkHost />
     <TopNav onOpenChat={() => setChatOpen((open) => !open)} onSignIn={() => openChat('Quiero conocer el modo demo')} onSignOut={handleSignOut} onResetChat={() => resetRef.current?.()} chatOpen={chatOpen} />
     <Dashboard onOpenChat={openChat} />
-    <ChatPanel isOpen={chatOpen} onClose={() => setChatOpen(false)} intent={chatIntent} resetSignal={0} onExposeReset={(reset) => { resetRef.current = reset; }} onMessagesChange={setMessages} onExposeSend={(send) => { sendRef.current = send; }} />
+    <ChatPanel isOpen={chatOpen} onClose={closeChat} intent={chatIntent} resetSignal={0} onExposeReset={(reset) => { resetRef.current = reset; }} onMessagesChange={setMessages} onExposeSend={(send) => { sendRef.current = send; }} />
     {!chatOpen && <FloatingChatWidget messages={messages} isOpen={false} onOpen={() => openChat()} onClose={() => {}} onSend={(text) => sendRef.current?.(text)} />}
   </>;
 }

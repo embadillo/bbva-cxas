@@ -18,7 +18,7 @@ export default function TopNav({ onOpenChat, onSignIn, onSignOut, onResetChat, c
 
       <div className="nav-actions">
         <button className="nav-btn nav-btn-online nav-welcome" type="button">
-          Bienvenido, {customerName || 'Emiliano'}
+          Bienvenida, {customerName || 'Lisa'}
         </button>
 
         <button className="nav-icon-btn nav-utility-btn" aria-label="Buscar" title="Buscar">
