@@ -94,6 +94,7 @@ export default function ChatPanel({ isOpen, onClose, onExposeReset, onMessagesCh
   const ttsPlayingRef = useRef(false);
   const isRespondingRef = useRef(isResponding);
   const ttsEnabledRef = useRef(ttsEnabled);
+  const conversationStartedRef = useRef(false);
 
   useEffect(() => {
     isRespondingRef.current = isResponding;
@@ -236,6 +237,7 @@ export default function ChatPanel({ isOpen, onClose, onExposeReset, onMessagesCh
   const sendMessage = useCallback(async (rawText) => {
     const text = String(rawText ?? inputVal).trim();
     if (!text || isResponding) return;
+    conversationStartedRef.current = true;
     setInputVal(''); setIsResponding(true); addUser(text);
     try { handleResponse(await sendConversationTurn(text, { journey })); }
     catch { addBot('La demostración tuvo un problema local. Podés intentar nuevamente.'); }
@@ -251,6 +253,7 @@ export default function ChatPanel({ isOpen, onClose, onExposeReset, onMessagesCh
     setPlaying(false);
     setMessages([]);
     setJourney(resetBBVADemo());
+    conversationStartedRef.current = false;
     resetCXASSession();
     resetCXASResponseGuard();
   }, [setPlaying, stopRecognition]);
@@ -259,6 +262,7 @@ export default function ChatPanel({ isOpen, onClose, onExposeReset, onMessagesCh
   const showHomeMenu = isOpen && !intent && messages.length === 0;
   useEffect(() => {
     return subscribeCXASWelcome(({ outputs }) => {
+      if (conversationStartedRef.current) return;
       const normalizedOutputs = normalizeCXASResponseOutputs(outputs);
       const responseText = normalizedOutputs.map((output) => output.text).filter(Boolean).join('\n').trim();
       const payloads = normalizedOutputs.map((output) => output.payload).filter(Boolean);
